@@ -1,5 +1,6 @@
 package h.d.t.dkaraoke;
 
+import h.d.t.controller.AsyncTaskManager;
 import h.d.t.data.KaraokeDB;
 import h.d.t.model.Song;
 
@@ -14,7 +15,6 @@ import android.os.Bundle;
 import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.ActionBarActivity;
 import android.support.v7.widget.SearchView;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -44,11 +44,12 @@ public class DKaraoke extends ActionBarActivity implements OnClickListener {
 	private View navigation;
 	private int language;
 	private ImageView langImg;
+	private SearchView mSearchView;
+	private AsyncTaskManager atm;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		Log.v("aa", "1");
 		setContentView(R.layout.fragment_main);
 		showLoadingDialog();
 		manufature = 1;
@@ -71,21 +72,11 @@ public class DKaraoke extends ActionBarActivity implements OnClickListener {
 		optv2.setOnClickListener(this);
 		op_tv3.setOnClickListener(this);
 		mListView = (ListView) findViewById(R.id.listview);
+		atm = AsyncTaskManager.getInstance(this);
 		getData.start();
-		// Create an ad.
-		// adView = new AdView(this);
-		// adView.setAdSize(AdSize.BANNER);
-		// adView.setLayoutParams(new LinearLayout.LayoutParams(
-		// LinearLayout.LayoutParams.MATCH_PARENT,
-		// LinearLayout.LayoutParams.WRAP_CONTENT));
-		// adView.setAdUnitId("ca-app-pub-3455242531560994/5246531266");
-		//
-		// // Add the AdView to the view hierarchy. The view will have no size
-		// // until the ad is loaded.
-		// LinearLayout layout = (LinearLayout) findViewById(R.id.linearLayout);
-		// layout.addView(adView);
 
 		mSongs = new ArrayList<ArrayList<Song>>();
+
 	}
 
 	private Thread getData = new Thread(new Runnable() {
@@ -169,10 +160,10 @@ public class DKaraoke extends ActionBarActivity implements OnClickListener {
 	public boolean onCreateOptionsMenu(Menu menu) {
 		MenuInflater inflater = getMenuInflater();
 		inflater.inflate(R.menu.actions, menu);
-		SearchView searchView = (SearchView) MenuItemCompat.getActionView(menu
+		mSearchView = (SearchView) MenuItemCompat.getActionView(menu
 				.findItem(R.id.action_search));
-		searchView.setOnQueryTextListener(mOnQueryTextListener);
-		searchView.addOnLayoutChangeListener(new OnLayoutChangeListener() {
+		mSearchView.setOnQueryTextListener(mOnQueryTextListener);
+		mSearchView.addOnLayoutChangeListener(new OnLayoutChangeListener() {
 
 			@Override
 			public void onLayoutChange(View v, int left, int top, int right,
@@ -196,31 +187,50 @@ public class DKaraoke extends ActionBarActivity implements OnClickListener {
 	private final SearchView.OnQueryTextListener mOnQueryTextListener = new SearchView.OnQueryTextListener() {
 		@Override
 		public boolean onQueryTextChange(String newText) {
-			newText = newText.toLowerCase();
-			int index;
-			if (manufature == 3) {
-				index = 2;
-			} else {
-				index = manufature - 1 + 3 * language;
-			}
-			ArrayList<Song> songss = mSongs.get(index);
-			if (newText.length() == 0) {
-				mAdapter = new ListAdapter(songss, DKaraoke.this,
-						onCickListener);
-				mListView.setAdapter(mAdapter);
+			if (mSongs == null || mSongs.isEmpty()) {
 				return true;
 			}
-			ArrayList<Song> songs = new ArrayList<Song>();
-			for (Song song : songss) {
-				if (song.name.toLowerCase().contains(newText)
-						|| song.abbr.toLowerCase().contains(newText)
-						|| song.author.toLowerCase().contains(newText)
-						|| song.lyric.toLowerCase().contains(newText)) {
-					songs.add(song);
+			final String text = newText.toLowerCase();
+			atm.execute(new Runnable() {
+
+				@Override
+				public void run() {
+					int index;
+					if (manufature == 3) {
+						index = 2;
+					} else {
+						index = manufature - 1 + 3 * language;
+					}
+					ArrayList<Song> songss = mSongs.get(index);
+					if (text.length() == 0) {
+						mAdapter = new ListAdapter(songss, DKaraoke.this,
+								onCickListener);
+
+					} else {
+						ArrayList<Song> songs = new ArrayList<Song>();
+						for (Song song : songss) {
+							if (song.name.toLowerCase().contains(text)
+									|| song.abbr.toLowerCase().contains(text)
+									|| song.author.toLowerCase().contains(text)
+									|| song.lyric.toLowerCase().contains(text)) {
+								songs.add(song);
+							}
+						}
+						mAdapter = new ListAdapter(songs, DKaraoke.this,
+								onCickListener);
+
+					}
+					runOnUiThread(new Runnable() {
+
+						@Override
+						public void run() {
+							mListView.setAdapter(mAdapter);
+
+						}
+					});
 				}
-			}
-			mAdapter = new ListAdapter(songs, DKaraoke.this, onCickListener);
-			mListView.setAdapter(mAdapter);
+			});
+
 			return true;
 		}
 
@@ -338,7 +348,6 @@ public class DKaraoke extends ActionBarActivity implements OnClickListener {
 		runOnUiThread(new Runnable() {
 			@Override
 			public void run() {
-				Log.v("aa", "2");
 				if (mLoadingDialog != null && mLoadingDialog.isShowing()) {
 					mLoadingDialog.dismiss();
 				}

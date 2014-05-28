@@ -25,15 +25,14 @@ public class KaraokeDB {
 	private DatabaseHelper mDbHelper;
 	private SQLiteDatabase mDb;
 
-	private final Context mContext;
-
 	private static final String DATABASE_NAME = "DataDkaraoke";
 	private static final int DATABASE_VERSION = 3;
 
 	private static volatile KaraokeDB mInstance;
+	private volatile int mCounter = 0;
+	private static final Object mLock = new Object();
 
 	public KaraokeDB(Context context) {
-		mContext = context;
 		mDbHelper = new DatabaseHelper(context);
 	}
 
@@ -100,22 +99,26 @@ public class KaraokeDB {
 
 	}
 
-	/**
-	 * Connect database
-	 */
-	public synchronized KaraokeDB open() throws SQLException {
-		if (mDbHelper == null) {
-			mDbHelper = new DatabaseHelper(mContext);
+	public KaraokeDB open() throws SQLException {
+		synchronized (mLock) {
+			if (mCounter == 0) {
+				mDb = mDbHelper.getWritableDatabase();
+			}
+			mCounter++;
 		}
-		mDb = mDbHelper.getWritableDatabase();
 		return this;
 	}
 
 	/**
-	 * Disconnect database
+	 * Đóng kết nối tới database
 	 */
 	public void close() {
-		mDbHelper.close();
+		synchronized (mLock) {
+			mCounter--;
+			if (mCounter == 0) {
+				mDbHelper.close();
+			}
+		}
 	}
 
 	/**
